@@ -30,6 +30,8 @@
 
 #include <linux/device-mapper.h>
 
+#include "../../kernel/sched/sched.h"
+
 #define DM_MSG_PREFIX "crypt"
 
 /*
@@ -1201,9 +1203,17 @@ static void kcryptd_async_done(struct crypto_async_request *async_req,
 		kcryptd_crypt_write_io_submit(io);
 }
 
+/**
+ * Very high priority. Max is -20 but we would be mad to boost it that high
+ * Needs testing to see if this impacts user experience
+ */
+static int _kcryptd_nice = -6;
+
 static void kcryptd_crypt(struct work_struct *work)
 {
 	struct dm_crypt_io *io = container_of(work, struct dm_crypt_io, work);
+
+	set_user_nice(current, _kcryptd_nice);
 
 	if (bio_data_dir(io->base_bio) == READ)
 		kcryptd_crypt_read_convert(io);
@@ -1660,7 +1670,7 @@ static int crypt_ctr(struct dm_target *ti, unsigned int argc, char **argv)
 
 	cc->crypt_queue = alloc_workqueue("kcryptd",
 					  WQ_CPU_INTENSIVE | WQ_MEM_RECLAIM |
-					  WQ_UNBOUND, num_online_cpus());
+					  WQ_UNBOUND, num_possible_cpus());
 	if (!cc->crypt_queue) {
 		ti->error = "Couldn't create kcryptd queue";
 		goto bad;

@@ -635,7 +635,7 @@ static void msm_mpm_work_fn(struct work_struct *work)
 	unsigned long flags;
 	while (1) {
 		bool allow;
-		wait_for_completion(&wake_wq);
+		wait_for_completion_interruptible(&wake_wq);
 		spin_lock_irqsave(&msm_mpm_lock, flags);
 		allow = msm_mpm_irqs_detectable(true) &&
 				msm_mpm_gpio_irqs_detectable(true);
@@ -745,12 +745,12 @@ static int msm_mpm_dev_probe(struct platform_device *pdev)
 	return 0;
 }
 
-static inline int __init mpm_irq_domain_linear_size(struct irq_domain *d)
+static inline int mpm_irq_domain_linear_size(struct irq_domain *d)
 {
 	return d->revmap_data.linear.size;
 }
 
-static inline int __init mpm_irq_domain_legacy_size(struct irq_domain *d)
+static inline int mpm_irq_domain_legacy_size(struct irq_domain *d)
 {
 	return d->revmap_data.legacy.size;
 }

@@ -163,6 +163,12 @@
 #define I2C_RETRY_DELAY		20 /* ms */
 #define I2C_RETRIES		5
 
+/*
+ * Default RTP_STRENGTH is 0x7F which in decimal is 127
+ * it's a little to harsh, let's try 100 as the default
+ */
+static int rtp_strength = 0x64;
+
 static struct drv260x {
 	struct class *class;
 	struct device *device;
@@ -582,7 +588,7 @@ static void vibrator_enable(struct timed_output_dev *dev, int value)
 		if (mode != MODE_REAL_TIME_PLAYBACK) {
 			if (audio_haptics_enabled && mode == MODE_AUDIOHAPTIC)
 				setAudioHapticsEnabled(NO);
-			drv260x_set_rtp_val(REAL_TIME_PLAYBACK_STRENGTH);
+			drv260x_set_rtp_val(rtp_strength);
 			drv260x_change_mode(MODE_REAL_TIME_PLAYBACK);
 			vibrator_is_playing = YES;
 		}
@@ -681,6 +687,12 @@ static struct timed_output_dev to_dev = {
 	.get_time = vibrator_get_time,
 	.enable = vibrator_enable,
 };
+
+void set_vibrate(int value)
+{
+	vibrator_enable(&to_dev, value);
+}
+
 static void drv260x_update_init_sequence(unsigned char *seq, int size,
 					unsigned char reg, unsigned char data)
 {
@@ -1099,6 +1111,37 @@ static struct file_operations fops = {
 	.write = drv260x_write
 };
 
+static ssize_t show_rtp_strength(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	return snprintf(buf, PAGE_SIZE, "%d\n", rtp_strength);
+}
+
+static ssize_t store_rtp_strength(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	int ret;
+	unsigned long input;
+
+	ret = kstrtoul(buf, 0, &input);
+	if (ret < 0)
+		return ret;
+
+	if (input > 100)
+		input = 100;
+	else if (input < 0)
+		input = 0;
+
+	rtp_strength = input;
+	return count;
+}
+
+static DEVICE_ATTR(rtp_strength, (S_IWUSR|S_IRUGO),
+	show_rtp_strength, store_rtp_strength);
+
+struct kobject *drv2605_kobj;
+EXPORT_SYMBOL_GPL(drv2605_kobj);
+
 static int drv260x_init(void)
 {
 	int reval = -ENOMEM;
@@ -1156,6 +1199,16 @@ static int drv260x_init(void)
 	wake_lock_init(&vibdata.wklock, WAKE_LOCK_SUSPEND, "vibrator");
 	mutex_init(&vibdata.lock);
 
+	drv2605_kobj = kobject_create_and_add("drv2605", NULL) ;
+	if (drv2605_kobj == NULL) {
+		printk(KERN_ALERT "drv260x: drv2605_kobj create_and_add failed\n");
+	}
+
+	reval = sysfs_create_file(drv2605_kobj, &dev_attr_rtp_strength.attr);
+	if (reval) {
+		printk(KERN_ALERT "drv260x: sysfs_create_file failed for rtp_strength\n");
+	}
+
 	printk(KERN_ALERT "drv260x: initialized\n");
 	return 0;
 
@@ -1174,6 +1227,7 @@ static int drv260x_init(void)
 
 static void drv260x_exit(void)
 {
+	kobject_del(drv2605_kobj);
 	gpio_direction_output(drv260x->en_gpio, GPIO_LEVEL_LOW);
 	gpio_free(drv260x->en_gpio);
 	if (!IS_ERR(drv260x->vibrator_vdd))

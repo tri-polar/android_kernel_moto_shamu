@@ -12,6 +12,9 @@
 
 extern __read_mostly int scheduler_running;
 
+extern unsigned int max_possible_freq;
+extern unsigned int min_max_freq;
+
 /*
  * Convert user-nice values [ -20 ... 0 ... 19 ]
  * to static priority [ MAX_RT_PRIO..MAX_PRIO-1 ],
@@ -478,7 +481,11 @@ struct rq {
 	u64 avg_idle;
 #endif
 
-	int cur_freq, max_freq, min_freq;
+	/*
+	 * max_freq = user or thermal defined maximum
+	 * max_possible_freq = maximum supported by hardware
+	 */
+	unsigned int cur_freq, max_freq, min_freq, max_possible_freq;
 	u64 cumulative_runnable_avg;
 
 #ifdef CONFIG_IRQ_TIME_ACCOUNTING
@@ -653,6 +660,8 @@ extern int group_balance_cpu(struct sched_group *sg);
 #include "auto_group.h"
 
 extern unsigned int sched_ravg_window;
+extern unsigned int max_possible_freq;
+extern unsigned int min_max_freq;
 extern unsigned int pct_task_load(struct task_struct *p);
 extern void init_new_task_load(struct task_struct *p);
 
@@ -1106,7 +1115,6 @@ static inline u64 steal_ticks(u64 steal)
 
 static inline void inc_nr_running(struct rq *rq)
 {
-	sched_update_nr_prod(cpu_of(rq), rq->nr_running, true);
 	rq->nr_running++;
 
 #ifdef CONFIG_NO_HZ_FULL
@@ -1122,7 +1130,6 @@ static inline void inc_nr_running(struct rq *rq)
 
 static inline void dec_nr_running(struct rq *rq)
 {
-	sched_update_nr_prod(cpu_of(rq), rq->nr_running, false);
 	rq->nr_running--;
 }
 

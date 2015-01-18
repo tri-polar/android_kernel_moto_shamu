@@ -134,6 +134,12 @@ struct cpu_dbs_common_info {
 	u64 prev_cpu_idle;
 	u64 prev_cpu_wall;
 	u64 prev_cpu_nice;
+	unsigned int prev_load;
+	/*
+	 * Flag to ensure that we copy the previous load only once, upon the
+	 * first wake-up from idle.
+	 */
+	bool copy_prev_load;
 	struct cpufreq_policy *cur_policy;
 	struct delayed_work work;
 	/*
@@ -179,6 +185,7 @@ struct cs_dbs_tuners {
 	unsigned int up_threshold;
 	unsigned int down_threshold;
 	unsigned int freq_step;
+	unsigned int twostep_counter;
 };
 
 /* Common Governor data across policies */
@@ -256,6 +263,8 @@ static ssize_t show_sampling_rate_min_gov_pol				\
 	struct dbs_data *dbs_data = policy->governor_data;		\
 	return sprintf(buf, "%u\n", dbs_data->min_sampling_rate);	\
 }
+
+extern struct mutex cpufreq_governor_lock;
 
 void dbs_check_cpu(struct dbs_data *dbs_data, int cpu);
 bool need_load_eval(struct cpu_dbs_common_info *cdbs,
